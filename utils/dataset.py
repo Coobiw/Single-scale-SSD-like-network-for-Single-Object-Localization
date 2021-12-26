@@ -13,8 +13,9 @@ from utils.anchor_tool import bbox_encode
 from utils.anchor_tool import label_assignment
 
 class tiny_dataset(Dataset):
-    def __init__(self,k_selected=3,label_assignment_threshold=0.5,
-                 root=r'E:\BS_learning\4_1\CV_basis\experiment\SSD-like method\tiny_vid'):
+    def __init__(self,train_num_per_class:int = 150,val_num_per_class:int = 30,
+                 augmentation :bool = False,
+                 root:str = r'E:\BS_learning\4_1\CV_basis\experiment\SSD-like method\tiny_vid'):
         self.root = root
         data_dir = []
         label_dir = []
@@ -25,24 +26,10 @@ class tiny_dataset(Dataset):
                 data_dir.append(each)
         self.imgs = read_img(root=self.root,data_dir=data_dir)
         self.labels = get_label() # （900，）的float64的Tensor
-        self.bboxs,bbox_hw = read_bbox(root=self.root,label_dir=label_dir) # （900，4）的float64的Tensor
-        self.anchors = anchor_generate(kms_anchor=kms_result_anchor(bbox_hw,k_selected))
+        self.bboxs,self.bbox_hw = read_bbox(root=self.root,label_dir=label_dir)
+        # （900，4）的float64的Tensor
 
         self.img_size = self.imgs[0].size
-
-        self.encoded_bboxs = bbox_encode(self.anchors,self.bboxs,img_size=self.img_size)
-
-        anchors_num = self.anchors.shape[0]
-        assigned_label_list = []
-
-        for ig in range(self.bboxs.shape[0]):
-            assigned_label_list.append(label_assignment(self.anchors, self.bboxs[ig].unsqueeze(dim=0),
-                                                        label=self.labels[ig],
-                                                        threshold=label_assignment_threshold,
-                                                        img_size = self.img_size))
-
-        self.assigned_labels = t.cat(assigned_label_list, dim=0).view(self.bboxs.shape[0], anchors_num,1)
-        print('num of the positive samples: ',t.where(self.assigned_labels!=0)[0].numel())
 
     def __len__(self):
         return len(self.imgs)
@@ -55,8 +42,7 @@ class tiny_dataset(Dataset):
         )
 
         return {'img':img_transform(self.imgs[index]),
-                'label':self.labels[index],'bbox':self.bboxs[index],
-               'encoded_bbox':self.encoded_bboxs[index],'assigned_label':self.assigned_labels[index]}
+                'label':self.labels[index],'bbox':self.bboxs[index]}
 
 def read_img(root,data_dir):
     img_path = []
@@ -107,11 +93,7 @@ def read_bbox(root,label_dir):
     return bbox_data,bbox_hw
 
 if __name__ == '__main__':
-    dataset = tiny_dataset(k_selected=3,label_assignment_threshold=0.4)
-    print(dataset.encoded_bboxs.shape)
-    # print(dataset[0]['encoded_bbox'].shape)
-    # print(dataset.assigned_labels)
-    print(dataset.assigned_labels.shape)
+    dataset = tiny_dataset()
     item = dataset[188]
     img = item['img']
     bbox = item['bbox'].data.numpy()
@@ -123,8 +105,9 @@ if __name__ == '__main__':
     img = img.astype('uint8')
     img = cv2.cvtColor(img,cv2.COLOR_RGB2BGR)
 
+    k_selected = 3
 
-    anchors = dataset.anchors
+    anchors = anchor_generate(kms_anchor=kms_result_anchor(dataset.bbox_hw, k_selected))
 
     h,w = img.shape[0],img.shape[1]
     assert h==w,'please let the input image be a square'

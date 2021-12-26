@@ -6,7 +6,7 @@ from torchsummary import summary
 
 
 class Localization_anchor_net(nn.Module):
-    def __init__(self, class_num=5, pretrained=True, anchor_num_per_point=3,
+    def __init__(self, class_num=5, pretrained=True, anchor_num_per_point=3,need_sw = False,
                  dropout_or_not=False,prob=0.5):  # without the background
         self.class_num = class_num
         self.anchor_num_per_point = anchor_num_per_point
@@ -18,6 +18,7 @@ class Localization_anchor_net(nn.Module):
             if (not isinstance(each, nn.AdaptiveAvgPool2d)) and (not isinstance(each, nn.Linear)):
                 self.feature_extraction.add_module(name=name, module=each)
 
+        self.need_sw_flag = need_sw
         self.dropout_flag = dropout_or_not
         self.dropout = nn.Dropout2d(prob)
 
@@ -31,7 +32,8 @@ class Localization_anchor_net(nn.Module):
         self.features = self.feature_extraction(x)
         _,_,hh,ww = self.features.shape
 
-        self.features = F.relu(self.bn_sw(self.sliding_window(self.features)))
+        if self.need_sw_flag:
+            self.features = F.relu(self.bn_sw(self.sliding_window(self.features)))
 
         if self.dropout_flag:
             self.features = self.dropout(self.features)

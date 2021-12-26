@@ -108,6 +108,7 @@ def label_assignment(anchors,gts,label,threshold,img_size):
     # 如果是一张图有多个物体（bbox），则assign的应该是gt的序号
     # 这里由于每张图有且仅有一个gt，所以可以直接assign这个gt的类别
     anchors_num = anchors.shape[0]
+
     h,w = img_size
 
     assert h==w , 'please let the input image be a square'
@@ -116,7 +117,7 @@ def label_assignment(anchors,gts,label,threshold,img_size):
     iou_matrix = get_iou_matrix(anchors,gts)
     POSITIVE_SAMPLE = label+1
 
-    assignment_matrix = t.zeros(iou_matrix.shape,dtype=label.dtype)
+    assignment_matrix = t.zeros(iou_matrix.shape,dtype=label.dtype,device=anchors.device)
 
     # 计算对于每个anchor，最大的gt，这里不需要，因为每个图片有且仅有一个gt
     # 大于threshold的定为正样本
@@ -153,7 +154,7 @@ def bbox_encode(anchors,bbox,img_size): # bbox: (Batch_size,4)
         for ia in range(anchor_num):
             offset_list.append(xywh2offset(anchors[ia],bbox_xywh[ib]))
 
-    return t.cat(offset_list,dim=0).reshape(batch_size,anchor_num,4)
+    return t.cat(offset_list,dim=0).reshape(batch_size,anchor_num,4).to(device)
 
 
 def offset_decode(offsets,scores,anchors):

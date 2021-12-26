@@ -1,4 +1,9 @@
 from utils.dataset import tiny_dataset
+from utils.anchor_tool import anchor_generate
+from utils.anchor_tool import label_assignment
+from utils.anchor_tool import bbox_encode
+from utils.anchor_tool import kms_result_anchor
+
 from resnet_based_ssd import Localization_anchor_net
 from torch.utils.data import DataLoader,random_split
 import torch as t
@@ -23,6 +28,8 @@ def parser():
 
     parser.add_argument('--anchor-num-per-point',type=int,default=3)
     parser.add_argument('--dropout', type=bool, default=False)
+    parser.add_argument('--need-sw', type=bool, default=False,
+                        help='need a sliding window conv to exact more feature or not')
     parser.add_argument('--prob', type=float, default=0.5)
 
     parser.add_argument('--threshold',help='the threshold when assigning label',
@@ -31,6 +38,9 @@ def parser():
                         type = float,default = 1.)
     parser.add_argument('--neg-to-pos-ratio',help='hard negative sampling ratio',
                         type=float,default = 3.)
+
+    parser.add_argument('--augmentation', help='whether or not data augmentation',
+                        type=bool,default=False)
 
 
     parser.add_argument('--root',help='root directory of dataset',type=str,
@@ -85,6 +95,8 @@ def train():
         f.write('\n')
         f.write('dropout: ' + str(args.dropout)+'\tprob: ' + str(args.prob))
         f.write('\n')
+        f.write('need_sw: ' + str(args.need_sw))
+        f.write('\n')
         f.write('anchor_num_per_point: ' + str(args.anchor_num_per_point))
         f.write('\n')
         f.write('threshold: ' + str(args.threshold))
@@ -100,13 +112,17 @@ def train():
         f.write('device: '+ str(args.device))
 
     device = t.device(args.device)
+    k_selected = args.anchor_num_per_point
+    label_assignment_threshold = args.threshold
+
     t.manual_seed(777)
-    t.cuda.manual_seed(777) # 保证每次实验结果一致
+    t.cuda.manual_seed(777) # 保证每次实验结果基本一致
 
     print('loading the dataset ... ')
-    dataset = tiny_dataset(root=args.root,k_selected=args.anchor_num_per_point,
-                           label_assignment_threshold= args.threshold)
+    dataset = tiny_dataset(root=args.root,augmentation = args.augmentation)
 
+    anchors = anchor_generate(kms_anchor=kms_result_anchor(dataset.bbox_hw, k_selected)).to(device)
+    anchor_num = anchors.shape[0]
     # 保证每次random-split划分结果相同
     train_set,val_set = random_split(dataset=dataset,lengths=[150*5,30*5],
                                      generator=t.Generator().manual_seed(777))
@@ -118,7 +134,7 @@ def train():
 
     print('establish the net ...')
     net = Localization_anchor_net(class_num=5,pretrained=True,
-                            anchor_num_per_point=args.anchor_num_per_point,
+                            anchor_num_per_point=args.anchor_num_per_point,need_sw=args.need_sw,
                             dropout_or_not=args.dropout,prob=args.prob).to(device)
 
     print('initialize the net ... ')
@@ -142,7 +158,6 @@ def train():
 
     criterion = Loss_for_localization(args.regre_weight,args.neg_to_pos_ratio).to(device)
 
-    anchors = dataset.anchors
 
     print('start training ... ')
     for i in tqdm.tqdm(range(args.epochs)):
@@ -172,10 +187,20 @@ def train():
             img = item['img'].to(device)
             label = item['label'].to(device)
             bbox = item['bbox'].to(device)
-            assigned_label = item['assigned_label'].to(device)
-            encoded_bbox = item['encoded_bbox'].to(device)
             offsets,scores = net(img)
 
+            encoded_bbox = bbox_encode(anchors,bbox, img_size=dataset.img_size)
+
+            assigned_label_list = []
+
+            for ig in range(bbox.shape[0]):
+                assigned_label_list.append(label_assignment(anchors, bbox[ig].unsqueeze(dim=0),
+                                                            label=label[ig],
+                                                            threshold=label_assignment_threshold,
+                                                            img_size=dataset.img_size))
+
+            assigned_label = t.cat(assigned_label_list, dim=0)\
+                .view(bbox.shape[0], anchor_num, 1).to(device)
 
             loss_dict = criterion(offsets,scores,assigned_label,encoded_bbox)
             total_loss = loss_dict['total_loss']
@@ -213,9 +238,19 @@ def train():
                 img = item2['img'].to(device)
                 label = item2['label'].to(device)
                 bbox = item2['bbox'].to(device)
-                assigned_label = item2['assigned_label'].to(device)
-                encoded_bbox = item2['encoded_bbox'].to(device)
                 offsets, scores = net(img)
+
+                encoded_bbox = bbox_encode(anchors, bbox, img_size=dataset.img_size)
+
+                assigned_label_list = []
+
+                for ig in range(bbox.shape[0]):
+                    assigned_label_list.append(label_assignment(anchors, bbox[ig].unsqueeze(dim=0),
+                                                                label=label[ig],
+                                                                threshold=label_assignment_threshold,
+                                                                img_size=dataset.img_size))
+
+                assigned_label = t.cat(assigned_label_list, dim=0).view(bbox.shape[0], anchor_num, 1)
 
                 class_acc,regression_acc,acc = compute_three_acc(offsets,scores,anchors,
                                                                  label,bbox,img_size = (128,128))
