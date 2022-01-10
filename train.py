@@ -28,7 +28,7 @@ def parser():
 
     parser.add_argument('--anchor-num-per-point',type=int,default=3)
     parser.add_argument('--dropout', type=bool, default=False)
-    parser.add_argument('--need-sw', type=bool, default=False,
+    parser.add_argument('--need-sw', type=bool, default=True,
                         help='need a sliding window conv to exact more feature or not')
     parser.add_argument('--prob', type=float, default=0.5)
 
@@ -115,17 +115,20 @@ def train():
     k_selected = args.anchor_num_per_point
     label_assignment_threshold = args.threshold
 
+
     t.manual_seed(777)
     t.cuda.manual_seed(777) # 保证每次实验结果基本一致
 
     print('loading the dataset ... ')
-    dataset = tiny_dataset(root=args.root,augmentation = args.augmentation)
+    train_set = tiny_dataset(root=args.root,mode='train',augment = args.augmentation)
+    val_set = tiny_dataset(root=args.root, mode='val', augment= False)
 
-    anchors = anchor_generate(kms_anchor=kms_result_anchor(dataset.bbox_hw, k_selected)).to(device)
+    anchors = anchor_generate(kms_anchor=kms_result_anchor(train_set.bbox_hw, k_selected)).to(device)
     anchor_num = anchors.shape[0]
+
     # 保证每次random-split划分结果相同
-    train_set,val_set = random_split(dataset=dataset,lengths=[150*5,30*5],
-                                     generator=t.Generator().manual_seed(777))
+    # train_set,val_set = random_split(dataset=dataset,lengths=[150*5,30*5],
+    #                                  generator=t.Generator().manual_seed(777))
 
 
     train_loader = DataLoader(dataset=train_set,batch_size=args.batch_size,shuffle=True,num_workers=2)
@@ -189,7 +192,7 @@ def train():
             bbox = item['bbox'].to(device)
             offsets,scores = net(img)
 
-            encoded_bbox = bbox_encode(anchors,bbox, img_size=dataset.img_size)
+            encoded_bbox = bbox_encode(anchors,bbox, img_size=train_set.img_size)
 
             assigned_label_list = []
 
@@ -197,7 +200,7 @@ def train():
                 assigned_label_list.append(label_assignment(anchors, bbox[ig].unsqueeze(dim=0),
                                                             label=label[ig],
                                                             threshold=label_assignment_threshold,
-                                                            img_size=dataset.img_size))
+                                                            img_size=train_set.img_size))
 
             assigned_label = t.cat(assigned_label_list, dim=0)\
                 .view(bbox.shape[0], anchor_num, 1).to(device)
@@ -240,7 +243,7 @@ def train():
                 bbox = item2['bbox'].to(device)
                 offsets, scores = net(img)
 
-                encoded_bbox = bbox_encode(anchors, bbox, img_size=dataset.img_size)
+                encoded_bbox = bbox_encode(anchors, bbox, img_size=train_set.img_size)
 
                 assigned_label_list = []
 
@@ -248,7 +251,7 @@ def train():
                     assigned_label_list.append(label_assignment(anchors, bbox[ig].unsqueeze(dim=0),
                                                                 label=label[ig],
                                                                 threshold=label_assignment_threshold,
-                                                                img_size=dataset.img_size))
+                                                                img_size=train_set.img_size))
 
                 assigned_label = t.cat(assigned_label_list, dim=0).view(bbox.shape[0], anchor_num, 1)
 
