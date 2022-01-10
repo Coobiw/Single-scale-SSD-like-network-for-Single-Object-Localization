@@ -10,11 +10,9 @@ class RandomHorizontalFlip(nn.Module):
     def __init__(self,p:float=0.5):
         super(RandomHorizontalFlip,self).__init__()
         self.prob = p
-        random.seed(777)
 
     def forward(self,pil_img,bbox):
         prob = random.random()
-
         if prob < self.prob:
             return pil_img,bbox
 
@@ -31,11 +29,9 @@ class RandomVerticalFlip(nn.Module):
     def __init__(self,p:float=0.5):
         super(RandomVerticalFlip,self).__init__()
         self.prob = p
-        random.seed(685)
 
     def forward(self,pil_img,bbox):
         prob = random.random()
-
         if prob < self.prob:
             return pil_img,bbox
 

@@ -15,6 +15,7 @@ import argparse
 from loss_for_ssd import Loss_for_localization
 from evaluate import compute_three_acc
 import os
+import random
 
 def parser():
     parser = argparse.ArgumentParser()
@@ -78,6 +79,10 @@ def weight_init(net):
     return net
 
 def train():
+    random.seed(777)
+    t.manual_seed(777)
+    t.cuda.manual_seed(777)  # 保证每次实验结果基本一致
+
     args = parser().parse_args()
 
     writer = SummaryWriter(log_dir=args.log_dir, comment='curves_log')
@@ -114,10 +119,6 @@ def train():
     device = t.device(args.device)
     k_selected = args.anchor_num_per_point
     label_assignment_threshold = args.threshold
-
-
-    t.manual_seed(777)
-    t.cuda.manual_seed(777) # 保证每次实验结果基本一致
 
     print('loading the dataset ... ')
     train_set = tiny_dataset(root=args.root,mode='train',augment = args.augmentation)

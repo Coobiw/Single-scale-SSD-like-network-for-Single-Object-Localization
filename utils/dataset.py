@@ -13,6 +13,7 @@ from utils.anchor_tool import bbox_encode
 from utils.anchor_tool import label_assignment
 import torchvision.transforms.functional as ttf
 from augmentation import RandomHorizontalFlip,RandomVerticalFlip
+import random
 
 class tiny_dataset(Dataset):
     def __init__(self,root=r'E:\BS_learning\4_1\CV_basis\experiment\SSD-like method\tiny_vid',
@@ -136,9 +137,10 @@ def read_bbox(root,label_dir,mode):
 
 if __name__ == '__main__':
     t.manual_seed(729)
+    random.seed(777)
     trainset = tiny_dataset(mode='train',augment=True)
     valset = tiny_dataset(mode='val',augment=False)
-    item = valset[149]
+    item = trainset[149]
     img = item['img']
     bbox = item['bbox'].data.numpy()
     # print(bbox.shape)
