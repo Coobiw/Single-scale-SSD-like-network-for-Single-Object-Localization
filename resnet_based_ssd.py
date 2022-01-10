@@ -12,21 +12,26 @@ class Localization_anchor_net(nn.Module):
         self.anchor_num_per_point = anchor_num_per_point
 
         super(Localization_anchor_net, self).__init__()
-        resnet18 = models.resnet18(pretrained=pretrained)
+
+        backbone = models.resnet18(pretrained=pretrained)
         self.feature_extraction = nn.Sequential()
-        for name, each in resnet18.named_children():
+        for name, each in backbone.named_children():
             if (not isinstance(each, nn.AdaptiveAvgPool2d)) and (not isinstance(each, nn.Linear)):
                 self.feature_extraction.add_module(name=name, module=each)
 
         self.need_sw_flag = need_sw
         self.dropout_flag = dropout_or_not
-        self.dropout = nn.Dropout2d(prob)
 
-        self.sliding_window = nn.Conv2d(512,512,3,1,1,bias = False)
-        self.bn_sw = nn.BatchNorm2d(512)
+        if self.dropout_flag:
+            self.dropout = nn.Dropout2d(prob)
 
-        self.regre_head = nn.Conv2d(512,self.anchor_num_per_point * 4,3,1,1,bias = True)
-        self.class_head = nn.Conv2d(512,self.anchor_num_per_point*(self.class_num+1),3,1,1,bias = True)
+        mid_channel_num = backbone.fc.in_features
+        self.sliding_window = nn.Conv2d(mid_channel_num,mid_channel_num,3,1,1,bias = False)
+        self.bn_sw = nn.BatchNorm2d(mid_channel_num)
+
+        self.regre_head = nn.Conv2d(mid_channel_num,self.anchor_num_per_point * 4,3,1,1,bias = True)
+        self.class_head = nn.Conv2d(mid_channel_num,self.anchor_num_per_point*(self.class_num+1),
+                                    3,1,1,bias = True)
 
     def forward(self, x):
         self.features = self.feature_extraction(x)

@@ -14,6 +14,7 @@ class Loss_for_localization(nn.Module):
         # scores: [batch_size,anchor_num,class_num+1]
         # assigned_labels: [batch_size,anchor_num,1]
         # encoded_bboxes : [batch_size,anchor_num,4]
+
         batch_size,anchor_num,class_num_include_bg = scores.shape
 
         foreground_anchor_idx = t.where(assigned_labels[:,:,0] != 0)
