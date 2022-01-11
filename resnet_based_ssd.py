@@ -26,8 +26,10 @@ class Localization_anchor_net(nn.Module):
             self.dropout = nn.Dropout2d(prob)
 
         mid_channel_num = backbone.fc.in_features
-        self.sliding_window = nn.Conv2d(mid_channel_num,mid_channel_num,3,1,1,bias = False)
-        self.bn_sw = nn.BatchNorm2d(mid_channel_num)
+
+        if self.need_sw_flag:
+            self.sliding_window = nn.Conv2d(mid_channel_num,mid_channel_num,3,1,1,bias = False)
+            self.bn_sw = nn.BatchNorm2d(mid_channel_num)
 
         self.regre_head = nn.Conv2d(mid_channel_num,self.anchor_num_per_point * 4,3,1,1,bias = True)
         self.class_head = nn.Conv2d(mid_channel_num,self.anchor_num_per_point*(self.class_num+1),
@@ -46,7 +48,7 @@ class Localization_anchor_net(nn.Module):
         self.regre = self.regre_head(self.features)
         self.regre = self.regre.permute(0,2,3,1).contiguous()
         self.regre = self.regre.view(self.regre.shape[0],
-            self.regre.shape[1]*self.regre.shape[2]*self.anchor_num_per_point,4)
+                        self.regre.shape[1]*self.regre.shape[2]*self.anchor_num_per_point,4)
 
         self.classification = self.class_head(self.features)
         self.classification = self.classification.permute(0,2,3,1).contiguous()

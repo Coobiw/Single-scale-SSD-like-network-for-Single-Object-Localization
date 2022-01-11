@@ -14,6 +14,7 @@ from utils.anchor_tool import label_assignment
 import torchvision.transforms.functional as ttf
 from augmentation import RandomHorizontalFlip,RandomVerticalFlip
 import random
+import copy
 
 class tiny_dataset(Dataset):
     def __init__(self,root=r'E:\BS_learning\4_1\CV_basis\experiment\SSD-like method\tiny_vid',
@@ -50,7 +51,7 @@ class tiny_dataset(Dataset):
         if self.augment and self.mode == 'train':
             color_transforms = transforms.Compose(
                 [
-                    transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.5),
+                    transforms.ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0.25),
                     transforms.RandomGrayscale(p=0.1),
                 ]
             )
@@ -58,8 +59,11 @@ class tiny_dataset(Dataset):
                     RandomVerticalFlip(p=0.5),
                     RandomHorizontalFlip(p=0.5)
                 ]
-            c_img = color_transforms(self.imgs[index])
-            r_img,r_bbox = flip_transforms[1](*flip_transforms[0](c_img,self.bboxs[index]))
+            r_img = color_transforms(self.imgs[index].copy())
+            r_bbox = copy.deepcopy(self.bboxs[index])
+            for ft in flip_transforms:
+                r_img,r_bbox = ft(r_img,r_bbox)
+
             return {'img': basic_transform(r_img),
                     'label': self.labels[index], 'bbox': r_bbox}
 
@@ -136,52 +140,53 @@ def read_bbox(root,label_dir,mode):
     return bbox_data,bbox_hw
 
 if __name__ == '__main__':
-    t.manual_seed(729)
+    t.manual_seed(777)
     random.seed(777)
     trainset = tiny_dataset(mode='train',augment=True)
     valset = tiny_dataset(mode='val',augment=False)
-    item = trainset[149]
-    img = item['img']
-    bbox = item['bbox'].data.numpy()
-    # print(bbox.shape)
-    # print(bbox)
-    img = img.numpy().transpose(1,2,0)
-    img = img *[0.229,0.224,0.225] + [0.485,0.456,0.406]
-    img = img*255
-    img = img.astype('uint8')
-    img = cv2.cvtColor(img,cv2.COLOR_RGB2BGR)
+    for i in range(150,len(trainset)):
+        item = trainset[i]
+        img = item['img']
+        bbox = item['bbox'].data.numpy()
+        # print(bbox.shape)
+        # print(bbox)
+        img = img.numpy().transpose(1,2,0)
+        img = img *[0.229,0.224,0.225] + [0.485,0.456,0.406]
+        img = img*255
+        img = img.astype('uint8')
+        img = cv2.cvtColor(img,cv2.COLOR_RGB2BGR)
 
-    k_selected = 3
+        k_selected = 3
 
-    anchors = anchor_generate(kms_anchor=kms_result_anchor(trainset.bbox_hw, k_selected))
+        anchors = anchor_generate(kms_anchor=kms_result_anchor(trainset.bbox_hw, k_selected))
 
-    h,w = img.shape[0],img.shape[1]
-    assert h==w,'please let the input image be a square'
+        h,w = img.shape[0],img.shape[1]
+        assert h==w,'please let the input image be a square'
 
-    anchors = anchors.numpy() * h
-    anchors_xyxy  = np.zeros(anchors.shape,dtype=anchors.dtype)
-    anchors_xyxy[:, 0] = anchors[:, 0] - 0.5 * anchors[:, 2]
-    anchors_xyxy[:, 1] = anchors[:, 1] - 0.5 * anchors[:, 3]
-    anchors_xyxy[:, 2] = anchors[:, 0] + 0.5 * anchors[:, 2]
-    anchors_xyxy[:, 3] = anchors[:, 1] + 0.5 * anchors[:, 3]
+        anchors = anchors.numpy() * h
+        anchors_xyxy  = np.zeros(anchors.shape,dtype=anchors.dtype)
+        anchors_xyxy[:, 0] = anchors[:, 0] - 0.5 * anchors[:, 2]
+        anchors_xyxy[:, 1] = anchors[:, 1] - 0.5 * anchors[:, 3]
+        anchors_xyxy[:, 2] = anchors[:, 0] + 0.5 * anchors[:, 2]
+        anchors_xyxy[:, 3] = anchors[:, 1] + 0.5 * anchors[:, 3]
 
-    # print(anchors_xyxy)
-    anchors_xyxy += 128
-    anchors_xyxy = anchors_xyxy.astype('int32')
-    padding_img = np.zeros((128*3,128*3,3),dtype=img.dtype)
-    padding_img[128:256,128:256,:] = img
+        # print(anchors_xyxy)
+        anchors_xyxy += 128
+        anchors_xyxy = anchors_xyxy.astype('int32')
+        padding_img = np.zeros((128*3,128*3,3),dtype=img.dtype)
+        padding_img[128:256,128:256,:] = img
 
-    colors = [[0,0,255],[0,255,0],[255,0,0]]
-    for i,anchor in enumerate(anchors_xyxy):
-        padding_img = cv2.rectangle(padding_img,(anchor[0],anchor[1]),(anchor[2],anchor[3]),
-                                    color = colors[i%3])
+        colors = [[0,0,255],[0,255,0],[255,0,0]]
+        for i,anchor in enumerate(anchors_xyxy):
+            padding_img = cv2.rectangle(padding_img,(anchor[0],anchor[1]),(anchor[2],anchor[3]),
+                                        color = colors[i%3])
 
-    img_bbox = cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color=[0, 0, 255])
+        img_bbox = cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color=[0, 0, 255])
 
-    cv2.namedWindow('anchors', 0)
-    cv2.imshow('anchors', padding_img)
-    cv2.resizeWindow('anchors', 640, 480)
-    cv2.namedWindow('demo',0)
-    cv2.imshow('demo',img_bbox)
-    cv2.resizeWindow('demo', 640, 480)
-    cv2.waitKey(0)
+        cv2.namedWindow('anchors', 0)
+        cv2.imshow('anchors', padding_img)
+        cv2.resizeWindow('anchors', 640, 480)
+        cv2.namedWindow('demo',0)
+        cv2.imshow('demo',img_bbox)
+        cv2.resizeWindow('demo', 640, 480)
+        cv2.waitKey(0)

@@ -16,6 +16,8 @@ from loss_for_ssd import Loss_for_localization
 from evaluate import compute_three_acc
 import os
 import random
+import pickle
+import copy
 
 def parser():
     parser = argparse.ArgumentParser()
@@ -28,8 +30,9 @@ def parser():
                         type = float,default = 1.)
 
     parser.add_argument('--anchor-num-per-point',type=int,default=3)
-    parser.add_argument('--dropout', type=bool, default=False)
-    parser.add_argument('--need-sw', type=bool, default=True,
+    parser.add_argument('--kms-anchor-seed', type=int, default=777)
+    parser.add_argument('--dropout', type=bool, default=True)
+    parser.add_argument('--need-sw', type=bool, default=False,
                         help='need a sliding window conv to exact more feature or not')
     parser.add_argument('--prob', type=float, default=0.5)
 
@@ -102,6 +105,8 @@ def train():
         f.write('\n')
         f.write('need_sw: ' + str(args.need_sw))
         f.write('\n')
+        f.write('kms_anchor_seed: ' + str(args.kms_anchor_seed))
+        f.write('\n')
         f.write('anchor_num_per_point: ' + str(args.anchor_num_per_point))
         f.write('\n')
         f.write('threshold: ' + str(args.threshold))
@@ -109,6 +114,8 @@ def train():
         f.write('regre-weight: ' + str(args.regre_weight))
         f.write('\n')
         f.write('neg-to-pos-ratio: ' + str(args.neg_to_pos_ratio))
+        f.write('\n')
+        f.write('augmentation: ' + str(args.augmentation))
         f.write('\n')
         f.write('gradient-clamp: ' + str(args.gradient_clamp))
         f.write('\n')
@@ -124,8 +131,16 @@ def train():
     train_set = tiny_dataset(root=args.root,mode='train',augment = args.augmentation)
     val_set = tiny_dataset(root=args.root, mode='val', augment= False)
 
-    anchors = anchor_generate(kms_anchor=kms_result_anchor(train_set.bbox_hw, k_selected)).to(device)
+    kms_anchor = kms_result_anchor(train_set.bbox_hw, k_selected,
+                                   seed=args.kms_anchor_seed)
+    anchors = anchor_generate(kms_anchor).to(device)
     anchor_num = anchors.shape[0]
+
+    anchor_file_name = args.log_dir+'/kms_anchor_seed' \
+                             +str(args.kms_anchor_seed)+'.pkl'
+
+    with open(anchor_file_name,'wb') as af:
+        pickle.dump(copy.deepcopy(kms_anchor),af)
 
     # 保证每次random-split划分结果相同
     # train_set,val_set = random_split(dataset=dataset,lengths=[150*5,30*5],
@@ -309,4 +324,3 @@ def train():
 
 if __name__ == '__main__':
     train()
-   #
