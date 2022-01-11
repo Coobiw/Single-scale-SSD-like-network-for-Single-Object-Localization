@@ -132,7 +132,8 @@ def train():
     #                                  generator=t.Generator().manual_seed(777))
 
 
-    train_loader = DataLoader(dataset=train_set,batch_size=args.batch_size,shuffle=True,num_workers=2)
+    train_loader = DataLoader(dataset=train_set,batch_size=args.batch_size,
+                              shuffle=True,num_workers=2)
 
     val_loader = DataLoader(dataset=val_set,batch_size=1,shuffle=False,num_workers=0)
 
