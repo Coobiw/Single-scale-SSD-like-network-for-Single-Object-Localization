@@ -12,7 +12,7 @@ from utils.anchor_tool import kms_result_anchor
 from utils.anchor_tool import bbox_encode
 from utils.anchor_tool import label_assignment
 import torchvision.transforms.functional as ttf
-from augmentation import RandomHorizontalFlip,RandomVerticalFlip
+from utils.augmentation import RandomHorizontalFlip,RandomVerticalFlip
 import random
 import copy
 
