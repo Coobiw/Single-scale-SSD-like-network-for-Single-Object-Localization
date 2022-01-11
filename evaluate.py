@@ -6,11 +6,15 @@ import cv2
 from utils.dataset import tiny_dataset
 from torch.utils.data import random_split, DataLoader
 import argparse
+import pickle
 
 def args_parser():
     parser =  argparse.ArgumentParser()
     parser.add_argument('--load-model',help='the path pf .pth file of model',type=str,
                         required=True,dest='load_model')
+    parser.add_argument('--device', type=str,
+                        default='cuda', choices=['cuda','cpu'])
+    parser.add_argument('--kms-anchors-path',type=str,required=True)
 
     return parser
 
@@ -68,33 +72,41 @@ def compute_three_acc(offsets,scores,anchors,label,bbox,img_size):
 
 if __name__ == '__main__':
     import tqdm
+    from utils.anchor_tool import anchor_generate
 
     t.manual_seed(777)
     t.cuda.manual_seed(777)
-    dataset = tiny_dataset()
-    train_set, val_set = random_split(dataset=dataset, lengths=[150 * 5, 30 * 5],
-                                      generator=t.Generator().manual_seed(777))
-
-    val_loader = DataLoader(dataset=val_set, batch_size=1, shuffle=False)
 
     args = args_parser().parse_args()
+    device = args.device
+    with open(args.kms_anchors_path,'rb') as af:
+        kms_anchors = pickle.load(af)
 
-    anchors = dataset.anchors
+    train_set = tiny_dataset(mode='train', augment=False)
+    val_set = tiny_dataset(mode='val', augment=False)
+    val_loader = DataLoader(dataset=val_set, batch_size=1, shuffle=False)
+
     print('loading ... ')
-    net = t.load(args.load_model).cpu()
+    net = t.load(args.load_model).to(device)
     print('evaluating ... ')
     net.eval()
+
+    print('generating anchors ... ')
+    k_selected = net.anchor_num_per_point
+    anchors = anchor_generate(kms_anchor=kms_anchors).to(device)
+    anchor_num = anchors.shape[0]
+    print('finish generating !')
+
+    print('start evaluating ... ')
     with t.no_grad():
         regression_acc = 0
         class_acc = 0
         acc = 0
 
         for i,item in tqdm.tqdm(enumerate(val_loader)):
-            img = item['img']
-            label = item['label']
-            bbox = item['bbox']
-            encoded_bbox = item['encoded_bbox']
-            assigned_label = item['assigned_label']
+            img = item['img'].to(device)
+            label = item['label'].to(device)
+            bbox = item['bbox'].to(device)
 
             offsets,scores = net(img)
             loc,score = offset_decode(offsets[0],scores[0],anchors)

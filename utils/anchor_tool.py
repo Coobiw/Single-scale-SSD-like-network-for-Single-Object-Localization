@@ -34,8 +34,7 @@ def get_iou_matrix(anchors,gts): # anchor:[A,4] gt:[N,4] iou_matrix:[A,N]
     # print(iou_matrix)
     return iou_matrix
 
-def kms_result_anchor(bbox_hw,k_selected,max_k=21,device=t.device('cuda')):
-    seed = 729608
+def kms_result_anchor(bbox_hw,k_selected,max_k=21,seed=777):
     np.random.seed(seed)
     iter_time = 100
     k_list = list(range(1, max_k, 1))
@@ -64,7 +63,7 @@ def xywh2offset(anchor,bbox):
 
     return t.tensor([offset0,offset1,offset2,offset3])
 
-def offset2xywh(anchor,offset):
+def offset2xxyy(anchor,offset):
     acx, acy, aw, ah = anchor[0], anchor[1], anchor[2], anchor[3]
     max_exp_w_clamp = math.log(1./aw)
     max_exp_h_clamp = math.log(1./ah)
@@ -164,7 +163,7 @@ def offset_decode(offsets,scores,anchors):
     results = t.zeros(offsets.shape,dtype=offsets.dtype,device=offsets.device)
 
     for ia in range(anchors_num):
-        results[ia] = offset2xywh(anchors[ia],offsets[ia])
+        results[ia] = offset2xxyy(anchors[ia],offsets[ia])
 
     classes = t.argmax(scores,dim=1)
     class_scores = F.softmax(scores,dim=1)
